@@ -359,3 +359,16 @@ canvas {
   color: white;
   background: #29abe0;
 }
+
+
+#debugLayoutBadge {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  z-index: 9999;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  font: 12px sans-serif;
+}
