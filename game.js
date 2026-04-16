@@ -1,5 +1,5 @@
 // -----------------------------
-const cellSize = 30;
+let cellSize = 30;
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -60,7 +60,7 @@ function formatLocalDateKey(date) {
 }
 
 function getDateKey(dayIndex) {
-  const startDate = new Date(2024, 0, 1); // local Jan 1, 2024
+  const startDate = new Date(2024, 0, 1);
   const date = new Date(startDate);
   date.setDate(startDate.getDate() + dayIndex);
   return formatLocalDateKey(date);
@@ -126,7 +126,6 @@ Moves: ${moveCount}
 ${gridLines}
 
 ${streakCurrent} Day Streak!`;
-
   } catch (err) {
     console.error("Share text error:", err);
 
@@ -175,7 +174,6 @@ function startWinSequence() {
       winAnimationActive = false;
       winAnimationProgress = 1;
 
-      // Clear tray after the board fill is visible
       pieces = [];
       showWin = true;
       render();
@@ -318,7 +316,7 @@ async function loadPuzzle(dayIndex) {
     }
   } catch (err) {
     console.error("Failed to load puzzle:", file, err);
-	currentData = getFallbackPuzzle();
+    currentData = getFallbackPuzzle();
   }
 
   generateShapeColors();
@@ -381,7 +379,7 @@ function buildCalendar() {
     year: "numeric"
   });
 
-  const weekdays = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+  const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
   weekdays.forEach(d => {
     const el = document.createElement("div");
     el.textContent = d;
@@ -404,7 +402,7 @@ function buildCalendar() {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), d);
-    const dayIndex = Math.floor((date - startDate)/(1000*60*60*24));
+    const dayIndex = Math.floor((date - startDate) / (1000 * 60 * 60 * 24));
 
     const btn = document.createElement("div");
     btn.className = "calendar-day";
@@ -467,7 +465,8 @@ function updateLabelsButton() {
   const btn = document.getElementById("labelsBtn");
   if (!btn) return;
 
-  btn.textContent = labelsEnabled ? "#" : "#";
+  btn.textContent = "#";
+  btn.style.opacity = labelsEnabled ? "1" : "0.6";
 }
 
 // -----------------------------
@@ -499,7 +498,78 @@ function applySavedTheme() {
 }
 
 // -----------------------------
+// Support UI Functions
+// -----------------------------
+function openSupportOverlay() {
+  document.getElementById("supportOverlay").classList.add("active");
+}
+
+function closeSupportOverlay() {
+  document.getElementById("supportOverlay").classList.remove("active");
+}
+
+// -----------------------------
+// Mobile Layout Helpers
+// -----------------------------
+function isMobileLayout() {
+  return window.innerWidth <= 768;
+}
+
+function getLayoutConfig() {
+  const mobile = window.innerWidth <= 768;
+
+  if (mobile) {
+    return {
+      mobile: true,
+      bottomTrayOnly: true,
+
+      cellSize: 38,
+      sideMargin: 16,
+      topMargin: 120,
+
+      trayGap: 20,
+      pieceSpacing: 12,
+      extraBottomPadding: 80,
+      bottomTrayExtraWidth: 80,
+
+      dateFont: '700 30px Georgia, "Times New Roman", serif',
+      movesFont: '24px Georgia, "Times New Roman", serif',
+      dateY: -72,
+      movesY: -34,
+
+      labelRadius: 10,
+      labelFontSize: 13
+    };
+  }
+
+  return {
+    mobile: false,
+    bottomTrayOnly: false,
+
+    cellSize: 30,
+    sideMargin: 48,
+    topMargin: 150,
+
+    trayGap: 30,
+    pieceSpacing: 10,
+    extraBottomPadding: 60,
+    bottomTrayExtraWidth: 240,
+
+    dateFont: '700 24px Georgia, "Times New Roman", serif',
+    movesFont: '20px Georgia, "Times New Roman", serif',
+    dateY: -56,
+    movesY: -24,
+
+    labelRadius: 8,
+    labelFontSize: 12
+  };
+}
+
+// -----------------------------
 function resizeCanvas() {
+  const layout = getLayoutConfig();
+  cellSize = layout.cellSize;
+
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
@@ -637,20 +707,38 @@ function getShapeSize(shape) {
 function createPieces() {
   pieces = [];
 
+  const layout = getLayoutConfig();
+
   const boardWidth = currentData.grid_width * cellSize;
   const boardHeight = currentData.grid_height * cellSize;
 
-  const sideMargin = 48;
-  const trayGap = 30;
-  const spacing = 10;
-  const topMargin = 150;
-  const extraBottomPadding = 60;
+  const sideMargin = layout.sideMargin;
+  const trayGap = layout.trayGap;
+  const spacing = layout.pieceSpacing;
+  const topMargin = layout.topMargin;
+  const extraBottomPadding = layout.extraBottomPadding;
 
-  // Match render()
   gameOffsetX = Math.floor((canvas.width - boardWidth) / 2);
   gameOffsetY = topMargin;
 
-  // Tray regions are in the translated board coordinate system.
+  const bottomTrayY = boardHeight + trayGap;
+
+  const bottomAvailableLeft = -gameOffsetX + sideMargin;
+  const bottomAvailableRight = canvas.width - gameOffsetX - sideMargin;
+  const bottomAvailableWidth = Math.max(0, bottomAvailableRight - bottomAvailableLeft);
+
+  const boardCenterX = boardWidth / 2;
+  const bottomTrayWidth = Math.min(
+    bottomAvailableWidth,
+    boardWidth + layout.bottomTrayExtraWidth
+  );
+
+  let bottomTrayLeft = boardCenterX - bottomTrayWidth / 2;
+  bottomTrayLeft = Math.max(bottomAvailableLeft, bottomTrayLeft);
+
+  const maxBottomTrayLeft = bottomAvailableRight - bottomTrayWidth;
+  bottomTrayLeft = Math.min(bottomTrayLeft, maxBottomTrayLeft);
+
   const leftTrayLeft = -gameOffsetX + sideMargin;
   const leftTrayRight = -trayGap;
   const leftTrayWidth = Math.max(0, leftTrayRight - leftTrayLeft);
@@ -660,28 +748,6 @@ function createPieces() {
   const rightTrayWidth = Math.max(0, rightTrayRight - rightTrayLeft);
 
   const sideTrayHeight = boardHeight;
-
-  const bottomTrayY = boardHeight + trayGap;
-
-  // available width inside the canvas margins, in board-local coordinates
-  const bottomAvailableLeft = -gameOffsetX + sideMargin;
-  const bottomAvailableRight = canvas.width - gameOffsetX - sideMargin;
-  const bottomAvailableWidth = Math.max(0, bottomAvailableRight - bottomAvailableLeft);
-
-  // center the bottom tray under the board
-  const boardCenterX = boardWidth / 2;
-
-  // choose how wide the bottom tray is allowed to be
-  const bottomTrayWidth = Math.min(bottomAvailableWidth, boardWidth + 240);
-
-  // center that region under the board, then clamp it to screen margins
-  let bottomTrayLeft = boardCenterX - bottomTrayWidth / 2;
-  bottomTrayLeft = Math.max(bottomAvailableLeft, bottomTrayLeft);
-
-  const maxBottomTrayLeft = bottomAvailableRight - bottomTrayWidth;
-  bottomTrayLeft = Math.min(bottomTrayLeft, maxBottomTrayLeft);
-
-  const bottomTrayRight = bottomTrayLeft + bottomTrayWidth;
 
   let leftCursorY = 0;
   let rightCursorY = 0;
@@ -698,23 +764,7 @@ function createPieces() {
 
     let x, y;
 
-    const fitsLeft =
-      width <= leftTrayWidth &&
-      leftCursorY + height <= sideTrayHeight;
-
-    const fitsRight =
-      width <= rightTrayWidth &&
-      rightCursorY + height <= sideTrayHeight;
-
-    if (fitsLeft && (!fitsRight || leftCursorY <= rightCursorY)) {
-      x = leftTrayRight - width;
-      y = leftCursorY;
-      leftCursorY += height + spacing;
-    } else if (fitsRight) {
-      x = rightTrayLeft;
-      y = rightCursorY;
-      rightCursorY += height + spacing;
-    } else {
+    if (layout.bottomTrayOnly) {
       if (bottomCursorX + width > bottomTrayLeft + bottomTrayWidth) {
         bottomCursorX = bottomTrayLeft;
         bottomCursorY += bottomRowHeight + spacing;
@@ -727,6 +777,37 @@ function createPieces() {
       bottomCursorX += width + spacing;
       bottomRowHeight = Math.max(bottomRowHeight, height);
       lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
+    } else {
+      const fitsLeft =
+        width <= leftTrayWidth &&
+        leftCursorY + height <= sideTrayHeight;
+
+      const fitsRight =
+        width <= rightTrayWidth &&
+        rightCursorY + height <= sideTrayHeight;
+
+      if (fitsLeft && (!fitsRight || leftCursorY <= rightCursorY)) {
+        x = leftTrayRight - width;
+        y = leftCursorY;
+        leftCursorY += height + spacing;
+      } else if (fitsRight) {
+        x = rightTrayLeft;
+        y = rightCursorY;
+        rightCursorY += height + spacing;
+      } else {
+        if (bottomCursorX + width > bottomTrayLeft + bottomTrayWidth) {
+          bottomCursorX = bottomTrayLeft;
+          bottomCursorY += bottomRowHeight + spacing;
+          bottomRowHeight = 0;
+        }
+
+        x = bottomCursorX;
+        y = bottomCursorY;
+
+        bottomCursorX += width + spacing;
+        bottomRowHeight = Math.max(bottomRowHeight, height);
+        lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
+      }
     }
 
     pieces.push({
@@ -739,7 +820,7 @@ function createPieces() {
       gridX: 0,
       gridY: 0,
       color: shapeColors[i],
-	  label: i + 1
+      label: i + 1
     });
 
     lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
@@ -753,14 +834,13 @@ function createPieces() {
 function render() {
   if (!currentData) return;
 
+  const layout = getLayoutConfig();
+
   const boardWidth = currentData.grid_width * cellSize;
   const boardHeight = currentData.grid_height * cellSize;
 
-  const sideMargin = 48;
-  const topMargin = 150;
-
   gameOffsetX = Math.floor((canvas.width - boardWidth) / 2);
-  gameOffsetY = topMargin;
+  gameOffsetY = layout.topMargin;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -803,13 +883,11 @@ function render() {
   ctx.fillStyle = getCSS("--text");
   ctx.textAlign = "center";
 
-  // Date
-  ctx.font = '700 24px Georgia, "Times New Roman", serif';
-  ctx.fillText(dateStr, canvas.width / 2, gameOffsetY - 56);
+  ctx.font = layout.dateFont;
+  ctx.fillText(dateStr, canvas.width / 2, gameOffsetY + layout.dateY);
 
-  // Moves
-  ctx.font = '20px Georgia, "Times New Roman", serif';
-  ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY - 24);
+  ctx.font = layout.movesFont;
+  ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
 }
 
 function getLabelAnchor(piece) {
@@ -851,14 +929,14 @@ function getLabelTextColor(hex) {
 }
 
 function drawPieceLabel(piece) {
+  const layout = getLayoutConfig();
   const anchor = getLabelAnchor(piece);
   const text = String(piece.label);
 
-  const radius = Math.max(8, Math.floor(cellSize * 0.32));
+  const radius = layout.labelRadius;
 
   ctx.save();
 
-  // Badge background
   ctx.beginPath();
   ctx.arc(anchor.x, anchor.y, radius, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
@@ -867,10 +945,9 @@ function drawPieceLabel(piece) {
   ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
   ctx.stroke();
 
-  // Text
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `bold ${Math.max(10, Math.floor(cellSize * 0.42))}px Arial`;
+  ctx.font = `bold ${layout.labelFontSize}px Arial`;
   ctx.fillStyle = "#111";
   ctx.fillText(text, anchor.x, anchor.y);
 
@@ -914,8 +991,8 @@ function drawPieces() {
         cellSize
       );
     });
-	
-	if (labelsEnabled) {
+
+    if (labelsEnabled) {
       drawPieceLabel(p);
     }
   });
@@ -945,7 +1022,6 @@ function onMouseDown(e) {
         offsetX = pos.x - p.x;
         offsetY = pos.y - p.y;
 
-        // Reset ghost state so old valid placements cannot be reused
         ghostValid = false;
         ghostGX = 0;
         ghostGY = 0;
@@ -976,7 +1052,6 @@ function onMouseMove(e) {
 function onMouseUp() {
   if (showWin || !draggingPiece) return;
 
-  // Recalculate placement from the piece's current position
   const dropGX = Math.floor((draggingPiece.x + cellSize / 2) / cellSize);
   const dropGY = Math.floor((draggingPiece.y + cellSize / 2) / cellSize);
   const dropValid = canPlace(draggingPiece, dropGX, dropGY);
@@ -985,35 +1060,35 @@ function onMouseUp() {
     placePiece(draggingPiece, dropGX, dropGY);
 
     if (checkWin() && !showWin && !winAnimationActive) {
-		  const key = "puzzle_" + getDateKey(selectedDay);
+      const key = "puzzle_" + getDateKey(selectedDay);
 
-		  localStorage.setItem(key, JSON.stringify({
-			completed: true,
-			moves: moveCount
-		  }));
+      localStorage.setItem(key, JSON.stringify({
+        completed: true,
+        moves: moveCount
+      }));
 
-		  const todayKey = getDateKey(selectedDay);
-		  const yesterdayKey = getYesterdayKey();
+      const todayKey = getDateKey(selectedDay);
+      const yesterdayKey = getYesterdayKey();
 
-		  if (lastCompletedDate === yesterdayKey) {
-			streakCurrent++;
-		  } else if (lastCompletedDate !== todayKey) {
-			streakCurrent = 1;
-		  }
+      if (lastCompletedDate === yesterdayKey) {
+        streakCurrent++;
+      } else if (lastCompletedDate !== todayKey) {
+        streakCurrent = 1;
+      }
 
-		if (streakCurrent > streakBest) {
-			streakBest = streakCurrent;
-		}
+      if (streakCurrent > streakBest) {
+        streakBest = streakCurrent;
+      }
 
-		lastCompletedDate = todayKey;
+      lastCompletedDate = todayKey;
 
-		localStorage.setItem("streak_current", streakCurrent);
-		localStorage.setItem("streak_best", streakBest);
-		localStorage.setItem("last_completed_date", lastCompletedDate);
+      localStorage.setItem("streak_current", streakCurrent);
+      localStorage.setItem("streak_best", streakBest);
+      localStorage.setItem("last_completed_date", lastCompletedDate);
 
-		updateStreakDisplay();
-		startWinSequence();
-	}
+      updateStreakDisplay();
+      startWinSequence();
+    }
   } else {
     draggingPiece.x = draggingPiece.trayX;
     draggingPiece.y = draggingPiece.trayY;
@@ -1080,15 +1155,6 @@ function isValidPuzzleData(data) {
     Array.isArray(data.filled_cells) &&
     Array.isArray(data.shapes)
   );
-}
-
-// Support UI Functions
-function openSupportOverlay() {
-  document.getElementById("supportOverlay").classList.add("active");
-}
-
-function closeSupportOverlay() {
-  document.getElementById("supportOverlay").classList.remove("active");
 }
 
 // -----------------------------
