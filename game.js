@@ -509,18 +509,38 @@ function closeSupportOverlay() {
 }
 
 // -----------------------------
-// Mobile Layout Helpers
+// Input / Layout Helpers
 // -----------------------------
+function isTouchInput() {
+  return window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+}
+
+function getLayoutMode() {
+  const width = window.innerWidth;
+
+  if (width <= 768) return "phone";
+  if (width <= 1024) return "tablet";
+  return "desktop";
+}
+
+function isPhoneLayout() {
+  return getLayoutMode() === "phone";
+}
+
+function isTabletLayout() {
+  return getLayoutMode() === "tablet";
+}
+
 function isMobileLayout() {
-  return window.innerWidth <= 768;
+  return isPhoneLayout();
 }
 
 function getLayoutConfig() {
-  const mobile = window.innerWidth <= 768;
+  const mode = getLayoutMode();
 
-  if (mobile) {
+  if (mode === "phone") {
     return {
-      mobile: true,
+      mode: "phone",
       bottomTrayOnly: true,
 
       cellSize: 38,
@@ -542,8 +562,32 @@ function getLayoutConfig() {
     };
   }
 
+  if (mode === "tablet") {
+    return {
+      mode: "tablet",
+      bottomTrayOnly: false,
+
+      cellSize: 34,
+      sideMargin: 24,
+      topMargin: 130,
+
+      trayGap: 24,
+      pieceSpacing: 12,
+      extraBottomPadding: 70,
+      bottomTrayExtraWidth: 160,
+
+      dateFont: '700 28px Georgia, "Times New Roman", serif',
+      movesFont: '22px Georgia, "Times New Roman", serif',
+      dateY: -64,
+      movesY: -30,
+
+      labelRadius: 9,
+      labelFontSize: 12
+    };
+  }
+
   return {
-    mobile: false,
+    mode: "desktop",
     bottomTrayOnly: false,
 
     cellSize: 30,
@@ -888,6 +932,7 @@ function render() {
 
   ctx.font = layout.movesFont;
   ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
+
   updateDebugLayoutBadge();
 }
 
@@ -1163,9 +1208,9 @@ function updateDebugLayoutBadge() {
   if (!el) return;
 
   const layout = getLayoutConfig();
-  el.textContent = layout.mobile
-    ? `MOBILE | cell=${layout.cellSize} | width=${window.innerWidth}`
-    : `DESKTOP | cell=${layout.cellSize} | width=${window.innerWidth}`;
+  const touch = isTouchInput() ? "TOUCH" : "MOUSE";
+
+  el.textContent = `${layout.mode.toUpperCase()} | ${touch} | cell=${layout.cellSize} | width=${window.innerWidth}`;
 }
 
 // -----------------------------
