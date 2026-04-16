@@ -4,472 +4,69 @@
 <meta charset="UTF-8">
 <title>Puzzle Prototype</title>
 
-<style>
-  :root {
-    --bg: #f4f4f4;
-    --grid-bg: #fafafa;
-    --grid-line: #333;
-    --text: #111;
-  }
-
-  body.dark {
-    --bg: #1e1e1e;
-    --grid-bg: #2a2a2a;
-    --grid-line: #bbb;
-    --text: #eee;
-  }
-
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: var(--bg);
-    color: var(--text);
-    font-family: sans-serif;
-  }
-
-  canvas {
-    display: block;
-  }
-
-  #ui {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 10px;
-    z-index: 10;
-  }
-
-  button, input {
-    padding: 6px 10px;
-    font-size: 14px;
-  }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
+<!-- UI CONTROLS -->
 <div id="ui">
-  <input type="file" id="fileInput" />
-  <button onclick="toggleTheme()">Toggle Light/Dark</button>
+  <div id="streakDisplay">🔥 0</div>
+  <button id="labelsBtn" onclick="toggleLabels()">#</button>
+  <button id="themeBtn" onclick="toggleTheme()">🌙</button>
+  <button id="calendarBtn" onclick="toggleCalendar()">📅</button>
+</div>
+
+<!-- CALENDAR PANEL -->
+<div id="calendar" class="hidden">
+  <div id="calendar-header">
+    <button onclick="changeMonth(-1)">◀</button>
+    <span id="calendar-title"></span>
+    <button onclick="changeMonth(1)">▶</button>
+	<button onclick="goToToday()">Today</button>
+  </div>
+  <div id="calendar-grid"></div>
+</div>
+
+<!-- WIN OVERLAY -->
+<div id="winOverlay">
+  <div id="winBox">
+    <button id="winCloseBtn" onclick="closeWinOverlay()" aria-label="Close">✕</button>
+
+    <h2>Puzzle Complete!</h2>
+
+    <div id="winSharePreview"></div>
+    <div id="winNext">Come back tomorrow for a new puzzle.</div>
+
+    <button onclick="copyResult()">Copy Result</button>
+    <div id="copyMsg">Copied!</div>
+  </div>
+</div>
+
+<div id="supportUi">
+  <button id="supportBtn" onclick="openSupportOverlay()">Tip the Creator</button>
+</div>
+
+<div id="supportOverlay">
+  <div id="supportBox">
+    <button id="supportCloseBtn" onclick="closeSupportOverlay()" aria-label="Close support overlay">✕</button>
+    <h2>Enjoying the game?</h2>
+    <p>Support it.</p>
+    <a
+      id="supportLink"
+      href="YOUR_KOFI_LINK_HERE"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Visit Ko-fi
+    </a>
+  </div>
 </div>
 
 <canvas id="canvas"></canvas>
 
-<script>
-
-// -----------------------------
-const cellSize = 30;
-const padding = 2;
-
-// -----------------------------
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-let currentData = null;
-let shapeColors = [];
-
-let pieces = [];
-let draggingPiece = null;
-let offsetX = 0;
-let offsetY = 0;
-
-let ghostValid = false;
-let ghostGX = 0;
-let ghostGY = 0;
-
-let gameOffsetX = 0;
-let gameOffsetY = 0;
-
-let moveCount = 0;
-let showWin = false;
-
-// -----------------------------
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-
-  if (currentData) createPieces();
-  render();
-}
-
-window.addEventListener("resize", resizeCanvas);
-
-// -----------------------------
-function toggleTheme() {
-  document.body.classList.toggle("dark");
-  render();
-}
-
-// -----------------------------
-document.getElementById("fileInput").addEventListener("change", loadFile);
-
-function loadFile(event) {
-  const file = event.target.files[0];
-  const reader = new FileReader();
-
-  reader.onload = function(e) {
-    currentData = JSON.parse(e.target.result);
-
-    generateShapeColors();
-    createPieces();
-
-    moveCount = 0;
-    showWin = false;
-
-    resizeCanvas();
-  };
-
-  reader.readAsText(file);
-}
-
-// -----------------------------
-function generateShapeColors() {
-  shapeColors = [];
-  for (let i = 0; i < currentData.shapes.length; i++) {
-    shapeColors.push(`hsl(${(i * 137) % 360}, 70%, 55%)`);
-  }
-}
-
-// -----------------------------
-function createPieces() {
-
-  pieces = [];
-
-  const gridWidthPx = currentData.grid_width * cellSize;
-  const gridHeightPx = currentData.grid_height * cellSize;
-
-  const spacing = 10;
-
-  let rightX = gridWidthPx + 20;
-  let rightY = 20;
-
-  let bottomX = 20;
-  let bottomY = gridHeightPx + 20;
-  let rowHeight = 0;
-
-  currentData.shapes.forEach((shape, i) => {
-
-    let normalized = normalize(shape);
-
-    const maxX = Math.max(...normalized.map(c => c[0]));
-    const maxY = Math.max(...normalized.map(c => c[1]));
-
-    const width = (maxX + 1) * cellSize;
-    const height = (maxY + 1) * cellSize;
-
-    let x, y;
-
-    if (rightY + height <= gridHeightPx) {
-      x = rightX;
-      y = rightY;
-      rightY += height + spacing;
-    } else {
-      const trayWidth = gridWidthPx + 200;
-
-      if (bottomX + width > trayWidth) {
-        bottomX = 20;
-        bottomY += rowHeight + spacing;
-        rowHeight = 0;
-      }
-
-      x = bottomX;
-      y = bottomY;
-
-      bottomX += width + spacing;
-
-      if (height > rowHeight) {
-        rowHeight = height;
-      }
-    }
-
-    pieces.push({
-      cells: normalized,
-      x,
-      y,
-      trayX: x,
-      trayY: y,
-      placed: false,
-      gridX: 0,
-      gridY: 0,
-      color: shapeColors[i],
-      justPlaced: false
-    });
-  });
-}
-
-// -----------------------------
-function normalize(shape) {
-  let minX = Math.min(...shape.map(c => c[0]));
-  let minY = Math.min(...shape.map(c => c[1]));
-  return shape.map(c => [c[0] - minX, c[1] - minY]);
-}
-
-// -----------------------------
-function render() {
-
-  if (!currentData) return;
-
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  const gameWidth = currentData.grid_width * cellSize + 220;
-  const gameHeight = currentData.grid_height * cellSize + 200;
-
-  gameOffsetX = (canvas.width - gameWidth) / 2;
-  gameOffsetY = (canvas.height - gameHeight) / 2;
-
-  ctx.save();
-  ctx.translate(gameOffsetX, gameOffsetY);
-
-  drawFilledCells();
-  drawPieces();
-
-  ctx.restore();
-
-  // ✅ CENTERED MOVE COUNTER
-  ctx.fillStyle = getCSS("--text");
-  ctx.font = "18px sans-serif";
-  ctx.textAlign = "center";
-
-  ctx.fillText(
-    `Moves: ${moveCount}`,
-    canvas.width / 2,
-    gameOffsetY - 10
-  );
-
-  // ✅ WIN OVERLAY
-  if (showWin) {
-
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-
-    ctx.font = "48px sans-serif";
-    ctx.fillText(
-      "Puzzle Complete",
-      canvas.width / 2,
-      canvas.height / 2 - 20
-    );
-
-    ctx.font = "24px sans-serif";
-    ctx.fillText(
-      `Moves: ${moveCount}`,
-      canvas.width / 2,
-      canvas.height / 2 + 20
-    );
-  }
-}
-
-// -----------------------------
-function drawFilledCells() {
-
-  const bg = getCSS("--grid-bg");
-  const line = getCSS("--grid-line");
-
-  if (draggingPiece && ghostValid) {
-    ctx.fillStyle = "rgba(0,255,0,0.15)";
-    draggingPiece.cells.forEach(cell => {
-      ctx.fillRect(
-        (ghostGX + cell[0]) * cellSize,
-        (ghostGY + cell[1]) * cellSize,
-        cellSize,
-        cellSize
-      );
-    });
-  }
-
-  currentData.filled_cells.forEach(cell => {
-
-    ctx.fillStyle = bg;
-    ctx.fillRect(
-      cell[0] * cellSize,
-      cell[1] * cellSize,
-      cellSize,
-      cellSize
-    );
-
-    ctx.strokeStyle = line;
-    ctx.strokeRect(
-      cell[0] * cellSize,
-      cell[1] * cellSize,
-      cellSize,
-      cellSize
-    );
-  });
-}
-
-// -----------------------------
-function drawPieces() {
-
-  pieces.forEach(p => {
-
-    if (p === draggingPiece) {
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = ghostValid ? "green" : "red";
-
-      p.cells.forEach(cell => {
-        ctx.fillRect(
-          ghostGX * cellSize + cell[0]*cellSize,
-          ghostGY * cellSize + cell[1]*cellSize,
-          cellSize,
-          cellSize
-        );
-      });
-
-      ctx.globalAlpha = 1;
-    }
-
-    if (p.justPlaced) {
-      ctx.globalAlpha = 0.7;
-    }
-
-    ctx.fillStyle = p.color;
-
-    p.cells.forEach(cell => {
-      ctx.fillRect(
-        p.x + cell[0]*cellSize + padding,
-        p.y + cell[1]*cellSize + padding,
-        cellSize - padding*2,
-        cellSize - padding*2
-      );
-    });
-
-    ctx.globalAlpha = 1;
-  });
-}
-
-// -----------------------------
-canvas.addEventListener("mousedown", onMouseDown);
-canvas.addEventListener("mousemove", onMouseMove);
-canvas.addEventListener("mouseup", onMouseUp);
-
-function toLocal(mx, my) {
-  return {
-    x: mx - gameOffsetX,
-    y: my - gameOffsetY
-  };
-}
-
-function onMouseDown(e) {
-
-  if (showWin) return; // ✅ disable interaction
-
-  const pos = toLocal(e.offsetX, e.offsetY);
-
-  for (let p of pieces) {
-    for (let cell of p.cells) {
-
-      let x = p.x + cell[0]*cellSize;
-      let y = p.y + cell[1]*cellSize;
-
-      if (pos.x > x && pos.x < x+cellSize &&
-          pos.y > y && pos.y < y+cellSize) {
-
-        draggingPiece = p;
-        offsetX = pos.x - p.x;
-        offsetY = pos.y - p.y;
-        p.placed = false;
-        return;
-      }
-    }
-  }
-}
-
-function onMouseMove(e) {
-
-  if (showWin) return; // ✅ disable interaction
-  if (!draggingPiece) return;
-
-  const pos = toLocal(e.offsetX, e.offsetY);
-
-  draggingPiece.x = pos.x - offsetX;
-  draggingPiece.y = pos.y - offsetY;
-
-  ghostGX = Math.floor((draggingPiece.x + cellSize/2) / cellSize);
-  ghostGY = Math.floor((draggingPiece.y + cellSize/2) / cellSize);
-
-  ghostValid = canPlace(draggingPiece, ghostGX, ghostGY);
-
-  render();
-}
-
-function onMouseUp() {
-
-  if (showWin) return; // ✅ disable interaction
-  if (!draggingPiece) return;
-
-  if (ghostValid) {
-    placePiece(draggingPiece, ghostGX, ghostGY);
-
-    if (checkWin()) {
-      showWin = true;
-    }
-
-  } else {
-    draggingPiece.x = draggingPiece.trayX;
-    draggingPiece.y = draggingPiece.trayY;
-  }
-
-  draggingPiece = null;
-  render();
-}
-
-// -----------------------------
-function placePiece(piece, gx, gy) {
-  piece.gridX = gx;
-  piece.gridY = gy;
-  piece.x = gx * cellSize;
-  piece.y = gy * cellSize;
-  piece.placed = true;
-
-  moveCount++;
-
-  piece.justPlaced = true;
-  setTimeout(() => piece.justPlaced = false, 120);
-}
-
-// -----------------------------
-function checkWin() {
-  return pieces.every(p => p.placed);
-}
-
-// -----------------------------
-function canPlace(piece, gx, gy) {
-
-  for (let cell of piece.cells) {
-
-    let x = gx + cell[0];
-    let y = gy + cell[1];
-
-    if (!isFilled(x,y)) return false;
-
-    for (let p of pieces) {
-      if (p !== piece && p.placed) {
-        for (let c of p.cells) {
-          if (p.gridX + c[0] == x && p.gridY + c[1] == y) {
-            return false;
-          }
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
-// -----------------------------
-function isFilled(x,y) {
-  return currentData.filled_cells.some(c => c[0]==x && c[1]==y);
-}
-
-function getCSS(varName) {
-  return getComputedStyle(document.body).getPropertyValue(varName);
-}
-
-</script>
+<script src="puzzleIndex.js"></script>
+<script src="game.js"></script>
 
 </body>
 </html>
