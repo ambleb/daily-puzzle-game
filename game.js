@@ -888,6 +888,7 @@ function render() {
 
   ctx.font = layout.movesFont;
   ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
+  updateDebugLayoutBadge();
 }
 
 function getLabelAnchor(piece) {
@@ -1155,6 +1156,16 @@ function isValidPuzzleData(data) {
     Array.isArray(data.filled_cells) &&
     Array.isArray(data.shapes)
   );
+}
+
+function updateDebugLayoutBadge() {
+  const el = document.getElementById("debugLayoutBadge");
+  if (!el) return;
+
+  const layout = getLayoutConfig();
+  el.textContent = layout.mobile
+    ? `MOBILE | cell=${layout.cellSize} | width=${window.innerWidth}`
+    : `DESKTOP | cell=${layout.cellSize} | width=${window.innerWidth}`;
 }
 
 // -----------------------------
