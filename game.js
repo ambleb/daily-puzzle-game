@@ -545,7 +545,7 @@ function getLayoutConfig() {
 
 		cellSize: 38,
 		sideMargin: 16,
-		topMargin: 155,
+		topMargin: 145,
 
 		trayGap: 20,
 		pieceSpacing: 12,

@@ -10,8 +10,8 @@
 
 body.dark {
   --bg: #1e1e1e;
-  --grid-bg: #2a2a2a;
-  --grid-line: #bbb;
+  --grid-bg: #3a3a3a;
+  --grid-line: #d6d6d6;
   --text: #eee;
 }
 
