@@ -1279,14 +1279,19 @@ function onTouchStart(e) {
   pendingTouchOffsetY = hit.offsetY;
   pendingTouchStartClientX = touch.clientX;
   pendingTouchStartClientY = touch.clientY;
+
+  // Reserve this gesture for piece interaction
+  e.preventDefault();
 }
 
 function onTouchMove(e) {
   if (showWin || e.touches.length === 0) return;
 
+  // If this touch began on a piece, keep browser scrolling out of it
+  if (!pendingTouchPiece && !draggingPiece) return;
+
   const touch = e.touches[0];
 
-  // If not yet dragging, see if touch has moved enough to commit to drag
   if (!draggingPiece && pendingTouchPiece) {
     const dx = touch.clientX - pendingTouchStartClientX;
     const dy = touch.clientY - pendingTouchStartClientY;
@@ -1301,20 +1306,17 @@ function onTouchMove(e) {
     }
   }
 
-  if (!draggingPiece) return;
+  if (draggingPiece) {
+    movePointer(touch.clientX, touch.clientY);
+  }
 
-  movePointer(touch.clientX, touch.clientY);
   e.preventDefault();
 }
 
 function onTouchEnd(e) {
-  // If a drag never actually started, this was just a tap/scroll gesture
-  if (!draggingPiece) {
-    pendingTouchPiece = null;
-    return;
+  if (draggingPiece) {
+    endPointer();
   }
-
-  endPointer();
 
   pendingTouchPiece = null;
   e.preventDefault();
