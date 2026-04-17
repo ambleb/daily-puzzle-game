@@ -539,27 +539,27 @@ function getLayoutConfig() {
   const mode = getLayoutMode();
 
   if (mode === "phone") {
-	  return {
-		mode: "phone",
-		bottomTrayOnly: true,
+    return {
+      mode: "phone",
+      bottomTrayOnly: true,
 
-		cellSize: 38,
-		sideMargin: 16,
-		topMargin: 135,
+      cellSize: 38,
+      sideMargin: 16,
+      topMargin: 135,
 
-		trayGap: 20,
-		pieceSpacing: 12,
-		extraBottomPadding: 80,
-		bottomTrayExtraWidth: 80,
+      trayGap: 20,
+      pieceSpacing: 12,
+      extraBottomPadding: 80,
+      bottomTrayExtraWidth: 80,
 
-		dateFont: '700 24px Georgia, "Times New Roman", serif',
-		movesFont: '20px Georgia, "Times New Roman", serif',
-		dateY: -58,
-		movesY: -26,
+      dateFont: '700 24px Georgia, "Times New Roman", serif',
+      movesFont: '20px Georgia, "Times New Roman", serif',
+      dateY: -58,
+      movesY: -26,
 
-		labelRadius: 10,
-		labelFontSize: 13
-	  };
+      labelRadius: 10,
+      labelFontSize: 13
+    };
   }
 
   if (mode === "tablet") {
@@ -1045,18 +1045,25 @@ function drawPieces() {
 }
 
 // -----------------------------
-canvas.addEventListener("mousedown", onMouseDown);
-canvas.addEventListener("mousemove", onMouseMove);
-canvas.addEventListener("mouseup", onMouseUp);
+// POINTER / INPUT HELPERS
+// -----------------------------
+function getCanvasPoint(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  };
+}
 
 function toLocal(mx, my) {
   return { x: mx - gameOffsetX, y: my - gameOffsetY };
 }
 
-function onMouseDown(e) {
-  if (showWin) return;
+function startPointer(screenX, screenY) {
+  if (showWin) return false;
 
-  const pos = toLocal(e.offsetX, e.offsetY);
+  const point = getCanvasPoint(screenX, screenY);
+  const pos = toLocal(point.x, point.y);
 
   for (let p of pieces) {
     for (let cell of p.cells) {
@@ -1073,16 +1080,19 @@ function onMouseDown(e) {
         ghostGY = 0;
 
         p.placed = false;
-        return;
+        return true;
       }
     }
   }
+
+  return false;
 }
 
-function onMouseMove(e) {
+function movePointer(screenX, screenY) {
   if (showWin || !draggingPiece) return;
 
-  const pos = toLocal(e.offsetX, e.offsetY);
+  const point = getCanvasPoint(screenX, screenY);
+  const pos = toLocal(point.x, point.y);
 
   draggingPiece.x = pos.x - offsetX;
   draggingPiece.y = pos.y - offsetY;
@@ -1095,7 +1105,7 @@ function onMouseMove(e) {
   render();
 }
 
-function onMouseUp() {
+function endPointer() {
   if (showWin || !draggingPiece) return;
 
   const dropGX = Math.floor((draggingPiece.x + cellSize / 2) / cellSize);
@@ -1140,6 +1150,70 @@ function onMouseUp() {
     draggingPiece.y = draggingPiece.trayY;
     draggingPiece.placed = false;
   }
+
+  ghostValid = false;
+  ghostGX = 0;
+  ghostGY = 0;
+  draggingPiece = null;
+  render();
+}
+
+// -----------------------------
+// EVENT LISTENERS
+// -----------------------------
+canvas.addEventListener("mousedown", onMouseDown);
+canvas.addEventListener("mousemove", onMouseMove);
+canvas.addEventListener("mouseup", onMouseUp);
+
+canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+canvas.addEventListener("touchcancel", onTouchCancel, { passive: false });
+
+function onMouseDown(e) {
+  startPointer(e.clientX, e.clientY);
+}
+
+function onMouseMove(e) {
+  movePointer(e.clientX, e.clientY);
+}
+
+function onMouseUp() {
+  endPointer();
+}
+
+function onTouchStart(e) {
+  if (showWin || e.touches.length === 0) return;
+
+  const touch = e.touches[0];
+  const startedDrag = startPointer(touch.clientX, touch.clientY);
+
+  if (startedDrag) {
+    e.preventDefault();
+  }
+}
+
+function onTouchMove(e) {
+  if (showWin || !draggingPiece || e.touches.length === 0) return;
+
+  const touch = e.touches[0];
+  movePointer(touch.clientX, touch.clientY);
+  e.preventDefault();
+}
+
+function onTouchEnd(e) {
+  if (!draggingPiece) return;
+
+  endPointer();
+  e.preventDefault();
+}
+
+function onTouchCancel() {
+  if (!draggingPiece) return;
+
+  draggingPiece.x = draggingPiece.trayX;
+  draggingPiece.y = draggingPiece.trayY;
+  draggingPiece.placed = false;
 
   ghostValid = false;
   ghostGX = 0;
