@@ -17,6 +17,13 @@ let dragStartX = 0;
 let dragStartY = 0;
 let dragStartGridX = 0;
 let dragStartGridY = 0;
+let pendingTouchPiece = null;
+let pendingTouchOffsetX = 0;
+let pendingTouchOffsetY = 0;
+let pendingTouchStartClientX = 0;
+let pendingTouchStartClientY = 0;
+
+const TOUCH_DRAG_THRESHOLD = 12;
 
 let ghostValid = false;
 let ghostGX = 0;
@@ -1181,6 +1188,7 @@ function endPointer() {
   ghostGX = 0;
   ghostGY = 0;
   draggingPiece = null;
+  pendingTouchPiece = null;
   render();
 }
 
@@ -1192,6 +1200,46 @@ function restoreDraggedPiece() {
   draggingPiece.gridX = dragStartGridX;
   draggingPiece.gridY = dragStartGridY;
   draggingPiece.placed = dragStartPlaced;
+}
+
+function findPieceAtScreenPoint(screenX, screenY) {
+  const point = getCanvasPoint(screenX, screenY);
+  const pos = toLocal(point.x, point.y);
+
+  for (let p of pieces) {
+    for (let cell of p.cells) {
+      const x = p.x + cell[0] * cellSize;
+      const y = p.y + cell[1] * cellSize;
+
+      if (pos.x > x && pos.x < x + cellSize && pos.y > y && pos.y < y + cellSize) {
+        return {
+          piece: p,
+          offsetX: pos.x - p.x,
+          offsetY: pos.y - p.y
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function beginDraggingPiece(piece, startOffsetX, startOffsetY) {
+  draggingPiece = piece;
+  offsetX = startOffsetX;
+  offsetY = startOffsetY;
+
+  dragStartPlaced = piece.placed;
+  dragStartX = piece.x;
+  dragStartY = piece.y;
+  dragStartGridX = piece.gridX;
+  dragStartGridY = piece.gridY;
+
+  ghostValid = false;
+  ghostGX = 0;
+  ghostGY = 0;
+
+  piece.placed = false;
 }
 
 // -----------------------------
@@ -1222,29 +1270,59 @@ function onTouchStart(e) {
   if (showWin || e.touches.length === 0) return;
 
   const touch = e.touches[0];
-  const startedDrag = startPointer(touch.clientX, touch.clientY);
+  const hit = findPieceAtScreenPoint(touch.clientX, touch.clientY);
 
-  if (startedDrag) {
-    e.preventDefault();
-  }
+  if (!hit) return;
+
+  pendingTouchPiece = hit.piece;
+  pendingTouchOffsetX = hit.offsetX;
+  pendingTouchOffsetY = hit.offsetY;
+  pendingTouchStartClientX = touch.clientX;
+  pendingTouchStartClientY = touch.clientY;
 }
 
 function onTouchMove(e) {
-  if (showWin || !draggingPiece || e.touches.length === 0) return;
+  if (showWin || e.touches.length === 0) return;
 
   const touch = e.touches[0];
+
+  // If not yet dragging, see if touch has moved enough to commit to drag
+  if (!draggingPiece && pendingTouchPiece) {
+    const dx = touch.clientX - pendingTouchStartClientX;
+    const dy = touch.clientY - pendingTouchStartClientY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist >= TOUCH_DRAG_THRESHOLD) {
+      beginDraggingPiece(
+        pendingTouchPiece,
+        pendingTouchOffsetX,
+        pendingTouchOffsetY
+      );
+    }
+  }
+
+  if (!draggingPiece) return;
+
   movePointer(touch.clientX, touch.clientY);
   e.preventDefault();
 }
 
 function onTouchEnd(e) {
-  if (!draggingPiece) return;
+  // If a drag never actually started, this was just a tap/scroll gesture
+  if (!draggingPiece) {
+    pendingTouchPiece = null;
+    return;
+  }
 
   endPointer();
+
+  pendingTouchPiece = null;
   e.preventDefault();
 }
 
 function onTouchCancel() {
+  pendingTouchPiece = null;
+
   if (!draggingPiece) return;
 
   restoreDraggedPiece();
