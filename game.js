@@ -12,6 +12,12 @@ let draggingPiece = null;
 let offsetX = 0;
 let offsetY = 0;
 
+let dragStartPlaced = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragStartGridX = 0;
+let dragStartGridY = 0;
+
 let ghostValid = false;
 let ghostGX = 0;
 let ghostGY = 0;
@@ -1090,6 +1096,13 @@ function startPointer(screenX, screenY) {
         offsetX = pos.x - p.x;
         offsetY = pos.y - p.y;
 
+        // Save previous state so cancel/invalid drop can restore it
+        dragStartPlaced = p.placed;
+        dragStartX = p.x;
+        dragStartY = p.y;
+        dragStartGridX = p.gridX;
+        dragStartGridY = p.gridY;
+
         ghostValid = false;
         ghostGX = 0;
         ghostGY = 0;
@@ -1161,9 +1174,7 @@ function endPointer() {
       startWinSequence();
     }
   } else {
-    draggingPiece.x = draggingPiece.trayX;
-    draggingPiece.y = draggingPiece.trayY;
-    draggingPiece.placed = false;
+    restoreDraggedPiece();
   }
 
   ghostValid = false;
@@ -1171,6 +1182,16 @@ function endPointer() {
   ghostGY = 0;
   draggingPiece = null;
   render();
+}
+
+function restoreDraggedPiece() {
+  if (!draggingPiece) return;
+
+  draggingPiece.x = dragStartX;
+  draggingPiece.y = dragStartY;
+  draggingPiece.gridX = dragStartGridX;
+  draggingPiece.gridY = dragStartGridY;
+  draggingPiece.placed = dragStartPlaced;
 }
 
 // -----------------------------
@@ -1226,9 +1247,7 @@ function onTouchEnd(e) {
 function onTouchCancel() {
   if (!draggingPiece) return;
 
-  draggingPiece.x = draggingPiece.trayX;
-  draggingPiece.y = draggingPiece.trayY;
-  draggingPiece.placed = false;
+  restoreDraggedPiece();
 
   ghostValid = false;
   ghostGX = 0;
