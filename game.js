@@ -539,27 +539,27 @@ function getLayoutConfig() {
   const mode = getLayoutMode();
 
   if (mode === "phone") {
-    return {
-      mode: "phone",
-      bottomTrayOnly: true,
+	  return {
+		mode: "phone",
+		bottomTrayOnly: true,
 
-      cellSize: 38,
-      sideMargin: 16,
-      topMargin: 120,
+		cellSize: 38,
+		sideMargin: 16,
+		topMargin: 155,
 
-      trayGap: 20,
-      pieceSpacing: 12,
-      extraBottomPadding: 80,
-      bottomTrayExtraWidth: 80,
+		trayGap: 20,
+		pieceSpacing: 12,
+		extraBottomPadding: 80,
+		bottomTrayExtraWidth: 80,
 
-      dateFont: '700 30px Georgia, "Times New Roman", serif',
-      movesFont: '24px Georgia, "Times New Roman", serif',
-      dateY: -72,
-      movesY: -34,
+		dateFont: '700 24px Georgia, "Times New Roman", serif',
+		movesFont: '20px Georgia, "Times New Roman", serif',
+		dateY: -58,
+		movesY: -26,
 
-      labelRadius: 10,
-      labelFontSize: 13
-    };
+		labelRadius: 10,
+		labelFontSize: 13
+	  };
   }
 
   if (mode === "tablet") {
