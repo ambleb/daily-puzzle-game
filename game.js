@@ -620,20 +620,20 @@ function resizeCanvas(forceRebuild = false) {
   const nextHeight = window.innerHeight;
 
   const modeChanged = nextMode !== lastLayoutMode;
-  const widthChanged = nextWidth !== lastCanvasWidth;
+  const widthChanged = Math.abs(nextWidth - lastCanvasWidth) > 2;
 
   cellSize = layout.cellSize;
 
   canvas.width = nextWidth;
 
-  // Keep existing canvas height if it is already taller for tray space
+  // Keep height large enough for tray, but never smaller than viewport
   canvas.height = Math.max(nextHeight, canvas.height || 0);
 
   if (currentData && !showWin && (forceRebuild || modeChanged || widthChanged || pieces.length === 0)) {
     createPieces();
-  } else {
-    render();
   }
+
+  render();
 
   lastLayoutMode = nextMode;
   lastCanvasWidth = nextWidth;
