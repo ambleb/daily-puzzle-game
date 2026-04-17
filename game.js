@@ -32,6 +32,9 @@ const WIN_OVERLAY_DELAY = 180;
 let selectedDay = 0;
 let calendarOffset = 0;
 
+let lastLayoutMode = null;
+let lastCanvasWidth = 0;
+
 // -----------------------------
 // STREAK SYSTEM
 // -----------------------------
@@ -339,7 +342,7 @@ async function loadPuzzle(dayIndex) {
 
   document.getElementById("winOverlay").classList.remove("active");
 
-  resizeCanvas();
+  resizeCanvas(true);
   buildCalendar();
 }
 
@@ -610,18 +613,30 @@ function getLayoutConfig() {
 }
 
 // -----------------------------
-function resizeCanvas() {
+function resizeCanvas(forceRebuild = false) {
   const layout = getLayoutConfig();
+  const nextMode = layout.mode;
+  const nextWidth = window.innerWidth;
+  const nextHeight = window.innerHeight;
+
+  const modeChanged = nextMode !== lastLayoutMode;
+  const widthChanged = nextWidth !== lastCanvasWidth;
+
   cellSize = layout.cellSize;
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.width = nextWidth;
 
-  if (currentData && !showWin) {
+  // Keep existing canvas height if it is already taller for tray space
+  canvas.height = Math.max(nextHeight, canvas.height || 0);
+
+  if (currentData && !showWin && (forceRebuild || modeChanged || widthChanged || pieces.length === 0)) {
     createPieces();
+  } else {
+    render();
   }
 
-  render();
+  lastLayoutMode = nextMode;
+  lastCanvasWidth = nextWidth;
 }
 
 window.addEventListener("resize", resizeCanvas);
