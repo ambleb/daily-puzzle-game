@@ -786,6 +786,15 @@ function getShapeSize(shape) {
 // BETTER TRAY SYSTEM
 // -----------------------------
 function createPieces() {
+	const previousPieces = new Map(
+		pieces.map(p => [p.label, {
+		  placed: p.placed,
+		  x: p.x,
+		  y: p.y,
+		  gridX: p.gridX,
+		  gridY: p.gridY
+		}])
+	);
   pieces = [];
 
   const layout = getLayoutConfig();
@@ -891,18 +900,37 @@ function createPieces() {
       }
     }
 
-    pieces.push({
-      cells,
-      x,
-      y,
-      trayX: x,
-      trayY: y,
-      placed: false,
-      gridX: 0,
-      gridY: 0,
-      color: shapeColors[i],
-      label: i + 1
-    });
+    const label = i + 1;
+	const prev = previousPieces.get(label);
+
+	const piece = {
+	  cells,
+	  x,
+	  y,
+	  trayX: x,
+	  trayY: y,
+	  placed: false,
+	  gridX: 0,
+	  gridY: 0,
+	  color: shapeColors[i],
+	  label
+	};
+
+	if (prev) {
+	  piece.placed = prev.placed;
+	  piece.gridX = prev.gridX;
+	  piece.gridY = prev.gridY;
+
+	  if (prev.placed) {
+		piece.x = prev.gridX * cellSize;
+		piece.y = prev.gridY * cellSize;
+	  } else {
+		piece.x = piece.trayX;
+		piece.y = piece.trayY;
+	  }
+	}
+
+	pieces.push(piece);
 
     lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
   });
