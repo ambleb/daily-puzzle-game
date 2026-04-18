@@ -46,7 +46,7 @@ let selectedDay = 0;
 let calendarOffset = 0;
 
 let lastLayoutMode = null;
-let lastCanvasWidth = 0;
+let lastOrientation = null;
 
 // -----------------------------
 // STREAK SYSTEM
@@ -629,27 +629,36 @@ function getLayoutConfig() {
 function resizeCanvas(forceRebuild = false) {
   const layout = getLayoutConfig();
   const nextMode = layout.mode;
+  const nextOrientation = getOrientation();
   const nextWidth = window.innerWidth;
   const nextHeight = window.innerHeight;
 
   const modeChanged = nextMode !== lastLayoutMode;
-  const widthChanged = Math.abs(nextWidth - lastCanvasWidth) > 2;
+  const orientationChanged = nextOrientation !== lastOrientation;
 
   cellSize = layout.cellSize;
 
   canvas.width = nextWidth;
 
-  // Keep height large enough for tray, but never smaller than viewport
+  // Keep canvas tall enough for existing tray space
   canvas.height = Math.max(nextHeight, canvas.height || 0);
 
-  if (currentData && !showWin && (forceRebuild || modeChanged || widthChanged || pieces.length === 0)) {
+  if (
+    currentData &&
+    !showWin &&
+    (forceRebuild || modeChanged || orientationChanged || pieces.length === 0)
+  ) {
     createPieces();
   }
 
   render();
 
   lastLayoutMode = nextMode;
-  lastCanvasWidth = nextWidth;
+  lastOrientation = nextOrientation;
+}
+
+function getOrientation() {
+  return window.innerWidth > window.innerHeight ? "landscape" : "portrait";
 }
 
 window.addEventListener("resize", resizeCanvas);
