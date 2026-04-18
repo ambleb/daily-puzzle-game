@@ -26,6 +26,16 @@ let pendingTouchStartClientY = 0;
 
 const TOUCH_DRAG_THRESHOLD = 12;
 
+let trayScrollX = 0;
+let trayMaxScrollX = 0;
+let trayViewport = null;
+
+let traySwipeActive = false;
+let traySwipeStartX = 0;
+let traySwipeStartScrollX = 0;
+let traySwipeTouchId = null;
+let pendingTrayPiece = null;
+
 let ghostValid = false;
 let ghostGX = 0;
 let ghostGY = 0;
@@ -660,6 +670,40 @@ function getLayoutConfig() {
   };
 }
 
+function isPhoneTrayMode() {
+  return getLayoutMode() === "phone";
+}
+
+function getPhoneTrayMetrics(boardWidth, boardHeight) {
+  const layout = getLayoutConfig();
+
+  const trayMargin = layout.sideMargin;
+  const trayGapAbove = 16;
+  const trayHeight = cellSize * 4 + 24;
+
+  return {
+    x: trayMargin,
+    y: gameOffsetY + boardHeight + trayGapAbove,
+    width: canvas.width - trayMargin * 2,
+    height: trayHeight
+  };
+}
+
+function clampTrayScroll() {
+  trayScrollX = Math.max(0, Math.min(trayScrollX, trayMaxScrollX));
+}
+
+function pointInTray(screenX, screenY) {
+  if (!trayViewport) return false;
+
+  return (
+    screenX >= trayViewport.x &&
+    screenX <= trayViewport.x + trayViewport.width &&
+    screenY >= trayViewport.y &&
+    screenY <= trayViewport.y + trayViewport.height
+  );
+}
+
 // -----------------------------
 function resizeCanvas(forceRebuild = false) {
   const layout = getLayoutConfig();
@@ -836,6 +880,14 @@ function createPieces() {
 
   const boardWidth = currentData.grid_width * cellSize;
   const boardHeight = currentData.grid_height * cellSize;
+  
+  if (isPhoneTrayMode()) {
+    trayViewport = getPhoneTrayMetrics(boardWidth, boardHeight);
+  } else {
+    trayViewport = null;
+    trayScrollX = 0;
+    trayMaxScrollX = 0;
+  }
 
   const sideMargin = layout.sideMargin;
   const trayGap = layout.trayGap;
@@ -890,18 +942,14 @@ function createPieces() {
     let x, y;
 
     if (layout.bottomTrayOnly) {
-      if (bottomCursorX + width > bottomTrayLeft + bottomTrayWidth) {
-        bottomCursorX = bottomTrayLeft;
-        bottomCursorY += bottomRowHeight + spacing;
-        bottomRowHeight = 0;
-      }
+      const trayInnerY = trayViewport.y - gameOffsetY + (trayViewport.height - height) / 2;
+      const trayStartX = trayViewport.x - gameOffsetX + 12;
 
-      x = bottomCursorX;
-      y = bottomCursorY;
+      x = trayStartX + bottomCursorX;
+      y = trayInnerY;
 
       bottomCursorX += width + spacing;
-      bottomRowHeight = Math.max(bottomRowHeight, height);
-      lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
+      lowestBottomEdge = Math.max(lowestBottomEdge, trayViewport.y - gameOffsetY + trayViewport.height);
     } else {
       const fitsLeft =
         width <= leftTrayWidth &&
@@ -970,8 +1018,20 @@ function createPieces() {
     lowestBottomEdge = Math.max(lowestBottomEdge, y + height);
   });
 
-  const neededHeight = gameOffsetY + lowestBottomEdge + extraBottomPadding;
-  canvas.height = Math.max(window.innerHeight, neededHeight);
+  if (isPhoneTrayMode() && trayViewport) {
+    const trayContentWidth = bottomCursorX + 12;
+    trayMaxScrollX = Math.max(0, trayContentWidth - trayViewport.width);
+    clampTrayScroll();
+  } else {
+    trayMaxScrollX = 0;
+  }
+
+  if (isPhoneTrayMode()) {
+    canvas.height = window.innerHeight;
+  } else {
+    const neededHeight = gameOffsetY + lowestBottomEdge + extraBottomPadding;
+    canvas.height = Math.max(window.innerHeight, neededHeight);
+  }
 }
 
 // -----------------------------
@@ -1112,7 +1172,40 @@ function drawGrid() {
 function drawPieces() {
   if (showWin) return;
 
+  const phoneTrayMode = isPhoneTrayMode() && trayViewport;
+
+  if (phoneTrayMode) {
+    // Draw tray background
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.06)";
+    ctx.beginPath();
+    ctx.roundRect(
+      trayViewport.x - gameOffsetX,
+      trayViewport.y - gameOffsetY,
+      trayViewport.width,
+      trayViewport.height,
+      12
+    );
+    ctx.fill();
+    ctx.restore();
+  }
+
   pieces.forEach(p => {
+    const isTrayPiece = !p.placed;
+    const trayOffsetX = phoneTrayMode && isTrayPiece ? -trayScrollX : 0;
+
+    if (phoneTrayMode && isTrayPiece) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(
+        trayViewport.x - gameOffsetX,
+        trayViewport.y - gameOffsetY,
+        trayViewport.width,
+        trayViewport.height
+      );
+      ctx.clip();
+    }
+
     if (p === draggingPiece) {
       ctx.globalAlpha = 0.4;
       ctx.fillStyle = ghostValid ? "green" : "red";
@@ -1133,7 +1226,7 @@ function drawPieces() {
 
     p.cells.forEach(cell => {
       ctx.fillRect(
-        p.x + cell[0] * cellSize,
+        p.x + trayOffsetX + cell[0] * cellSize,
         p.y + cell[1] * cellSize,
         cellSize,
         cellSize
@@ -1141,7 +1234,19 @@ function drawPieces() {
     });
 
     if (labelsEnabled) {
-      drawPieceLabel(p);
+      if (phoneTrayMode && isTrayPiece) {
+        ctx.save();
+        p.x += trayOffsetX;
+        drawPieceLabel(p);
+        p.x -= trayOffsetX;
+        ctx.restore();
+      } else {
+        drawPieceLabel(p);
+      }
+    }
+
+    if (phoneTrayMode && isTrayPiece) {
+      ctx.restore();
     }
   });
 }
@@ -1269,8 +1374,13 @@ function endPointer() {
 function restoreDraggedPiece() {
   if (!draggingPiece) return;
 
-  draggingPiece.x = dragStartX;
-  draggingPiece.y = dragStartY;
+  if (!dragStartPlaced && isPhoneTrayMode()) {
+    draggingPiece.x = draggingPiece.trayX;
+    draggingPiece.y = draggingPiece.trayY;
+  } else {
+    draggingPiece.x = dragStartX;
+    draggingPiece.y = dragStartY;
+  }
   draggingPiece.gridX = dragStartGridX;
   draggingPiece.gridY = dragStartGridY;
   draggingPiece.placed = dragStartPlaced;
@@ -1281,14 +1391,17 @@ function findPieceAtScreenPoint(screenX, screenY) {
   const pos = toLocal(point.x, point.y);
 
   for (let p of pieces) {
+    const isTrayPiece = isPhoneTrayMode() && !p.placed;
+    const visualX = isTrayPiece ? p.x - trayScrollX : p.x;
+
     for (let cell of p.cells) {
-      const x = p.x + cell[0] * cellSize;
+      const x = visualX + cell[0] * cellSize;
       const y = p.y + cell[1] * cellSize;
 
       if (pos.x > x && pos.x < x + cellSize && pos.y > y && pos.y < y + cellSize) {
         return {
           piece: p,
-          offsetX: pos.x - p.x,
+          offsetX: pos.x - visualX,
           offsetY: pos.y - p.y
         };
       }
@@ -1304,7 +1417,7 @@ function beginDraggingPiece(piece, startOffsetX, startOffsetY) {
   offsetY = startOffsetY;
 
   dragStartPlaced = piece.placed;
-  dragStartX = piece.x;
+  dragStartX = (isPhoneTrayMode() && !piece.placed) ? piece.x - trayScrollX : piece.x;
   dragStartY = piece.y;
   dragStartGridX = piece.gridX;
   dragStartGridY = piece.gridY;
@@ -1313,6 +1426,7 @@ function beginDraggingPiece(piece, startOffsetX, startOffsetY) {
   ghostGX = 0;
   ghostGY = 0;
 
+  piece.x = dragStartX;
   piece.placed = false;
 }
 
@@ -1341,11 +1455,18 @@ function onMouseUp() {
 }
 
 function onTouchStart(e) {
-  if (showWin || e.touches.length === 0) return;
+  if (showWin || showBeginOverlay || e.touches.length === 0) return;
 
   const touch = e.touches[0];
-  const hit = findPieceAtScreenPoint(touch.clientX, touch.clientY);
 
+  if (isPhoneTrayMode() && pointInTray(touch.clientX, touch.clientY)) {
+    traySwipeActive = true;
+    traySwipeStartX = touch.clientX;
+    traySwipeStartScrollX = trayScrollX;
+    traySwipeTouchId = touch.identifier;
+  }
+
+  const hit = findPieceAtScreenPoint(touch.clientX, touch.clientY);
   if (!hit) return;
 
   pendingTouchPiece = hit.piece;
@@ -1353,18 +1474,25 @@ function onTouchStart(e) {
   pendingTouchOffsetY = hit.offsetY;
   pendingTouchStartClientX = touch.clientX;
   pendingTouchStartClientY = touch.clientY;
-
-  // Reserve this gesture for piece interaction
-  e.preventDefault();
 }
 
 function onTouchMove(e) {
-  if (showWin || e.touches.length === 0) return;
-
-  // If this touch began on a piece, keep browser scrolling out of it
-  if (!pendingTouchPiece && !draggingPiece) return;
+  if (showWin || showBeginOverlay || e.touches.length === 0) return;
 
   const touch = e.touches[0];
+
+  if (isPhoneTrayMode() && traySwipeActive && !draggingPiece && pendingTouchPiece && !pendingTouchPiece.placed) {
+    const dx = touch.clientX - traySwipeStartX;
+    const dy = touch.clientY - pendingTouchStartClientY;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      trayScrollX = traySwipeStartScrollX - dx;
+      clampTrayScroll();
+      render();
+      e.preventDefault();
+      return;
+    }
+  }
 
   if (!draggingPiece && pendingTouchPiece) {
     const dx = touch.clientX - pendingTouchStartClientX;
@@ -1377,14 +1505,14 @@ function onTouchMove(e) {
         pendingTouchOffsetX,
         pendingTouchOffsetY
       );
+      traySwipeActive = false;
     }
   }
 
   if (draggingPiece) {
     movePointer(touch.clientX, touch.clientY);
+    e.preventDefault();
   }
-
-  e.preventDefault();
 }
 
 function onTouchEnd(e) {
@@ -1392,8 +1520,25 @@ function onTouchEnd(e) {
     endPointer();
   }
 
+  traySwipeActive = false;
+  traySwipeTouchId = null;
   pendingTouchPiece = null;
-  e.preventDefault();
+}
+
+function onTouchCancel() {
+  traySwipeActive = false;
+  traySwipeTouchId = null;
+  pendingTouchPiece = null;
+
+  if (!draggingPiece) return;
+
+  restoreDraggedPiece();
+
+  ghostValid = false;
+  ghostGX = 0;
+  ghostGY = 0;
+  draggingPiece = null;
+  render();
 }
 
 function onTouchCancel() {
@@ -1463,16 +1608,6 @@ function isValidPuzzleData(data) {
     Array.isArray(data.filled_cells) &&
     Array.isArray(data.shapes)
   );
-}
-
-function updateDebugLayoutBadge() {
-  const el = document.getElementById("debugLayoutBadge");
-  if (!el) return;
-
-  const layout = getLayoutConfig();
-  const touch = isTouchInput() ? "TOUCH" : "MOUSE";
-
-  el.textContent = `${layout.mode.toUpperCase()} | ${touch} | cell=${layout.cellSize} | width=${window.innerWidth}`;
 }
 
 // -----------------------------
