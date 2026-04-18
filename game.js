@@ -881,14 +881,6 @@ function createPieces() {
   const boardWidth = currentData.grid_width * cellSize;
   const boardHeight = currentData.grid_height * cellSize;
   
-  if (isPhoneTrayMode()) {
-    trayViewport = getPhoneTrayMetrics(boardWidth, boardHeight);
-  } else {
-    trayViewport = null;
-    trayScrollX = 0;
-    trayMaxScrollX = 0;
-  }
-
   const sideMargin = layout.sideMargin;
   const trayGap = layout.trayGap;
   const spacing = layout.pieceSpacing;
@@ -897,6 +889,20 @@ function createPieces() {
 
   gameOffsetX = Math.floor((canvas.width - boardWidth) / 2);
   gameOffsetY = topMargin;
+  
+  if (layout.bottomTrayOnly) {
+    const trayInnerY = (trayViewport.y - gameOffsetY) + (trayViewport.height - height) / 2;
+    const trayStartX = (trayViewport.x - gameOffsetX) + 12;
+
+    x = trayStartX + phoneTrayCursorX;
+    y = trayInnerY;
+
+    phoneTrayCursorX += width + spacing;
+    lowestBottomEdge = Math.max(
+      lowestBottomEdge,
+      (trayViewport.y - gameOffsetY) + trayViewport.height
+    );
+  }
 
   const bottomTrayY = boardHeight + trayGap;
 
@@ -932,6 +938,7 @@ function createPieces() {
   let bottomCursorX = bottomTrayLeft;
   let bottomCursorY = bottomTrayY;
   let bottomRowHeight = 0;
+  let phoneTrayCursorX = 0;
 
   let lowestBottomEdge = boardHeight;
 
@@ -1019,7 +1026,7 @@ function createPieces() {
   });
 
   if (isPhoneTrayMode() && trayViewport) {
-    const trayContentWidth = bottomCursorX + 12;
+    const trayContentWidth = phoneTrayCursorX + 12;
     trayMaxScrollX = Math.max(0, trayContentWidth - trayViewport.width);
     clampTrayScroll();
   } else {
@@ -1458,12 +1465,16 @@ function onTouchStart(e) {
   if (showWin || showBeginOverlay || e.touches.length === 0) return;
 
   const touch = e.touches[0];
+  const inTray = isPhoneTrayMode() && pointInTray(touch.clientX, touch.clientY);
 
-  if (isPhoneTrayMode() && pointInTray(touch.clientX, touch.clientY)) {
+  if (inTray) {
     traySwipeActive = true;
     traySwipeStartX = touch.clientX;
     traySwipeStartScrollX = trayScrollX;
     traySwipeTouchId = touch.identifier;
+
+    // Reserve tray interaction immediately
+    e.preventDefault();
   }
 
   const hit = findPieceAtScreenPoint(touch.clientX, touch.clientY);
@@ -1481,31 +1492,40 @@ function onTouchMove(e) {
 
   const touch = e.touches[0];
 
-  if (isPhoneTrayMode() && traySwipeActive && !draggingPiece && pendingTouchPiece && !pendingTouchPiece.placed) {
-    const dx = touch.clientX - traySwipeStartX;
-    const dy = touch.clientY - pendingTouchStartClientY;
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      trayScrollX = traySwipeStartScrollX - dx;
-      clampTrayScroll();
-      render();
-      e.preventDefault();
-      return;
-    }
-  }
-
   if (!draggingPiece && pendingTouchPiece) {
     const dx = touch.clientX - pendingTouchStartClientX;
     const dy = touch.clientY - pendingTouchStartClientY;
-    const dist = Math.hypot(dx, dy);
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
 
-    if (dist >= TOUCH_DRAG_THRESHOLD) {
-      beginDraggingPiece(
-        pendingTouchPiece,
-        pendingTouchOffsetX,
-        pendingTouchOffsetY
-      );
-      traySwipeActive = false;
+    if (isPhoneTrayMode() && traySwipeActive && !pendingTouchPiece.placed) {
+      // Horizontal gesture = swipe tray
+      if (absX > TOUCH_DRAG_THRESHOLD && absX > absY) {
+        trayScrollX = traySwipeStartScrollX - dx;
+        clampTrayScroll();
+        render();
+        e.preventDefault();
+        return;
+      }
+
+      // Vertical/upward gesture = drag piece out of tray
+      if (absY > TOUCH_DRAG_THRESHOLD && absY >= absX) {
+        beginDraggingPiece(
+          pendingTouchPiece,
+          pendingTouchOffsetX,
+          pendingTouchOffsetY
+        );
+        traySwipeActive = false;
+      }
+    } else {
+      const dist = Math.hypot(dx, dy);
+      if (dist >= TOUCH_DRAG_THRESHOLD) {
+        beginDraggingPiece(
+          pendingTouchPiece,
+          pendingTouchOffsetX,
+          pendingTouchOffsetY
+        );
+      }
     }
   }
 
@@ -1528,20 +1548,6 @@ function onTouchEnd(e) {
 function onTouchCancel() {
   traySwipeActive = false;
   traySwipeTouchId = null;
-  pendingTouchPiece = null;
-
-  if (!draggingPiece) return;
-
-  restoreDraggedPiece();
-
-  ghostValid = false;
-  ghostGX = 0;
-  ghostGY = 0;
-  draggingPiece = null;
-  render();
-}
-
-function onTouchCancel() {
   pendingTouchPiece = null;
 
   if (!draggingPiece) return;
