@@ -989,14 +989,16 @@ function render() {
     year: "numeric"
   });
 
-  ctx.fillStyle = getCSS("--text");
-  ctx.textAlign = "center";
+	ctx.fillStyle = getCSS("--text");
+	ctx.textAlign = "center";
 
-  ctx.font = layout.dateFont;
-  ctx.fillText(dateStr, canvas.width / 2, gameOffsetY + layout.dateY);
+	if (layout.mode !== "phone") {
+	  ctx.font = layout.dateFont;
+	  ctx.fillText(dateStr, canvas.width / 2, gameOffsetY + layout.dateY);
 
-  ctx.font = layout.movesFont;
-  ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
+	  ctx.font = layout.movesFont;
+	  ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
+	}
 
   updateDebugLayoutBadge();
 }
