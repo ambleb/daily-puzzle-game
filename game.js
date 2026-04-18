@@ -6,6 +6,7 @@ const ctx = canvas.getContext("2d");
 
 let currentData = null;
 let shapeColors = [];
+let showBeginOverlay = false;
 
 let pieces = [];
 let draggingPiece = null;
@@ -354,9 +355,13 @@ async function loadPuzzle(dayIndex) {
   }
 
   document.getElementById("winOverlay").classList.remove("active");
+  closeBeginOverlay();
 
   resizeCanvas(true);
   buildCalendar();
+  if (getLayoutMode() === "phone") {
+    openBeginOverlay();
+  }
 }
 
 function getFallbackPuzzle() {
@@ -524,6 +529,36 @@ function closeSupportOverlay() {
   document.getElementById("supportOverlay").classList.remove("active");
 }
 
+function getSelectedPuzzleDateString() {
+  const startDate = new Date(2024, 0, 1);
+  const puzzleDate = new Date(startDate);
+  puzzleDate.setDate(startDate.getDate() + selectedDay);
+
+  return puzzleDate.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function openBeginOverlay() {
+  if (getLayoutMode() !== "phone") return;
+
+  const overlay = document.getElementById("beginOverlay");
+  const dateEl = document.getElementById("beginDate");
+  if (!overlay || !dateEl) return;
+
+  dateEl.textContent = getSelectedPuzzleDateString();
+  overlay.classList.add("active");
+  showBeginOverlay = true;
+}
+
+function closeBeginOverlay() {
+  const overlay = document.getElementById("beginOverlay");
+  if (overlay) overlay.classList.remove("active");
+  showBeginOverlay = false;
+}
+
 // -----------------------------
 // Input / Layout Helpers
 // -----------------------------
@@ -561,7 +596,7 @@ function getLayoutConfig() {
 
       cellSize: 38,
       sideMargin: 16,
-      topMargin: 135,
+      topMargin: 100,
 
       trayGap: 20,
       pieceSpacing: 12,
@@ -1127,7 +1162,7 @@ function toLocal(mx, my) {
 }
 
 function startPointer(screenX, screenY) {
-  if (showWin) return false;
+  if (showWin || showBeginOverlay) return false;
 
   const point = getCanvasPoint(screenX, screenY);
   const pos = toLocal(point.x, point.y);
