@@ -890,18 +890,12 @@ function createPieces() {
   gameOffsetX = Math.floor((canvas.width - boardWidth) / 2);
   gameOffsetY = topMargin;
   
-  if (layout.bottomTrayOnly) {
-    const trayInnerY = (trayViewport.y - gameOffsetY) + (trayViewport.height - height) / 2;
-    const trayStartX = (trayViewport.x - gameOffsetX) + 12;
-
-    x = trayStartX + phoneTrayCursorX;
-    y = trayInnerY;
-
-    phoneTrayCursorX += width + spacing;
-    lowestBottomEdge = Math.max(
-      lowestBottomEdge,
-      (trayViewport.y - gameOffsetY) + trayViewport.height
-    );
+  if (isPhoneTrayMode()) {
+    trayViewport = getPhoneTrayMetrics(boardWidth, boardHeight);
+  } else {
+    trayViewport = null;
+    trayScrollX = 0;
+    trayMaxScrollX = 0;
   }
 
   const bottomTrayY = boardHeight + trayGap;
@@ -949,14 +943,17 @@ function createPieces() {
     let x, y;
 
     if (layout.bottomTrayOnly) {
-      const trayInnerY = trayViewport.y - gameOffsetY + (trayViewport.height - height) / 2;
-      const trayStartX = trayViewport.x - gameOffsetX + 12;
+      const trayInnerY = (trayViewport.y - gameOffsetY) + (trayViewport.height - height) / 2;
+      const trayStartX = (trayViewport.x - gameOffsetX) + 12;
 
-      x = trayStartX + bottomCursorX;
+      x = trayStartX + phoneTrayCursorX;
       y = trayInnerY;
 
-      bottomCursorX += width + spacing;
-      lowestBottomEdge = Math.max(lowestBottomEdge, trayViewport.y - gameOffsetY + trayViewport.height);
+      phoneTrayCursorX += width + spacing;
+      lowestBottomEdge = Math.max(
+        lowestBottomEdge,
+        (trayViewport.y - gameOffsetY) + trayViewport.height
+      );
     } else {
       const fitsLeft =
         width <= leftTrayWidth &&
@@ -1101,8 +1098,6 @@ function render() {
 	  ctx.font = layout.movesFont;
 	  ctx.fillText(`Moves: ${moveCount}`, canvas.width / 2, gameOffsetY + layout.movesY);
 	}
-
-  updateDebugLayoutBadge();
 }
 
 function getLabelAnchor(piece) {
