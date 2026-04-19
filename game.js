@@ -3,6 +3,7 @@ let cellSize = 30;
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const CALENDAR_START_DATE = new Date(2026, 2, 20); // March 20, 2026
 
 let currentData = null;
 let shapeColors = [];
@@ -102,6 +103,20 @@ function getYesterdayKey() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return formatLocalDateKey(d);
+}
+
+function getCalendarStartIndex() {
+  const startDate = new Date(2024, 0, 1);
+  const minDate = new Date(CALENDAR_START_DATE);
+
+  startDate.setHours(0, 0, 0, 0);
+  minDate.setHours(0, 0, 0, 0);
+
+  return Math.floor((minDate - startDate) / (1000 * 60 * 60 * 24));
+}
+
+function getLastAvailablePuzzleIndex() {
+  return getCalendarStartIndex() + puzzleFiles.length - 1;
 }
 
 // -----------------------------
@@ -331,7 +346,30 @@ async function loadPuzzle(dayIndex) {
   selectedDay = dayIndex;
   saveViewedDay(dayIndex);
 
-  const file = puzzleFiles[dayIndex % puzzleFiles.length];
+  const puzzleIndex = dayIndex - getCalendarStartIndex();
+
+  if (puzzleIndex < 0 || puzzleIndex >= puzzleFiles.length) {
+    console.error("No puzzle assigned for this date:", dayIndex);
+    currentData = getFallbackPuzzle();
+  } else {
+    const file = puzzleFiles[puzzleIndex];
+
+    try {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error("Bad JSON");
+ 
+      currentData = await res.json();
+
+      if (!isValidPuzzleData(currentData)) {
+        throw new Error("Puzzle JSON missing required fields");
+      }
+    } catch (err) {
+      console.error("Failed to load puzzle:", file, err);
+      currentData = getFallbackPuzzle();
+    }
+  }
+
+  const file = puzzleFiles[puzzleIndex];
 
   try {
     const res = await fetch(file);
@@ -388,7 +426,34 @@ function getFallbackPuzzle() {
 // CALENDAR
 // -----------------------------
 function changeMonth(delta) {
-  if (calendarOffset + delta > 0) return;
+  const todayIndex = getDailyIndex();
+  const startDate = new Date("2024-01-01");
+
+  const todayDate = new Date(startDate);
+  todayDate.setDate(startDate.getDate() + todayIndex);
+
+  const currentView = new Date(todayDate);
+  currentView.setMonth(currentView.getMonth() + calendarOffset);
+
+  const nextView = new Date(currentView);
+  nextView.setMonth(nextView.getMonth() + delta);
+
+  const minMonth = new Date(
+    CALENDAR_START_DATE.getFullYear(),
+    CALENDAR_START_DATE.getMonth(),
+    1
+  );
+
+  const lastPuzzleIndex = Math.min(getDailyIndex(), getLastAvailablePuzzleIndex());
+  const lastPuzzleDate = new Date(startDate);
+  lastPuzzleDate.setDate(startDate.getDate() + lastPuzzleIndex);
+
+  const maxMonth = new Date(lastPuzzleDate.getFullYear(), lastPuzzleDate.getMonth(), 1);
+  const nextMonthOnly = new Date(nextView.getFullYear(), nextView.getMonth(), 1);
+
+  if (nextMonthOnly < minMonth) return;
+  if (nextMonthOnly > maxMonth) return;
+
   calendarOffset += delta;
   buildCalendar();
 }
@@ -401,7 +466,9 @@ function buildCalendar() {
 
   const todayIndex = getDailyIndex();
   const startDate = new Date("2024-01-01");
-
+  const minIndex = getCalendarStartIndex();
+  const maxPuzzleIndex = getLastAvailablePuzzleIndex();
+  
   const baseDate = new Date(startDate);
   baseDate.setDate(startDate.getDate() + todayIndex);
   baseDate.setMonth(baseDate.getMonth() + calendarOffset);
@@ -440,11 +507,13 @@ function buildCalendar() {
     btn.className = "calendar-day";
     btn.textContent = d;
 
-    if (isCompleted(dayIndex)) btn.classList.add("completed");
+    if (dayIndex >= minIndex && isCompleted(dayIndex)) {
+      btn.classList.add("completed");
+    }
     if (dayIndex === todayIndex) btn.classList.add("today");
     if (dayIndex === selectedDay) btn.classList.add("selected");
 
-    if (dayIndex <= todayIndex) {
+    if (dayIndex >= minIndex && dayIndex <= todayIndex && dayIndex <= maxPuzzleIndex) {
       btn.onclick = () => {
         loadPuzzle(dayIndex);
         toggleCalendar();
@@ -459,6 +528,7 @@ function buildCalendar() {
 
 function goToToday() {
   const todayIndex = getDailyIndex();
+  const playableIndex = Math.min(todayIndex, getLastAvailablePuzzleIndex());
   calendarOffset = 0;
   loadPuzzle(todayIndex);
   buildCalendar();
@@ -1647,6 +1717,8 @@ function isValidPuzzleData(data) {
   const todayIndex = getDailyIndex();
   const savedViewedDay = getSavedViewedDay();
 
-  selectedDay = savedViewedDay ?? todayIndex;
+  const minIndex = getCalendarStartIndex();
+  const maxIndex = Math.min(todayIndex, getLastAvailablePuzzleIndex());
+  selectedDay = Math.max(minIndex, Math.min(maxIndex, savedViewedDay ?? todayIndex));
   await loadPuzzle(selectedDay);
 })();
