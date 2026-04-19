@@ -119,6 +119,13 @@ function getLastAvailablePuzzleIndex() {
   return getCalendarStartIndex() + puzzleFiles.length - 1;
 }
 
+function getPuzzleDate(dayIndex) {
+  const startDate = new Date(2024, 0, 1);
+  const date = new Date(startDate);
+  date.setDate(startDate.getDate() + dayIndex);
+  return date;
+}
+
 // -----------------------------
 // SHARE TEXT
 // -----------------------------
@@ -153,11 +160,9 @@ function getShareText() {
 
     const gridLines = grid.map(row => row.join("")).join("\n");
 
-    const startDate = new Date("2024-01-01");
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + selectedDay);
+    const puzzleDate = getPuzzleDate(selectedDay);
 
-    const dateStr = date.toLocaleDateString(undefined, {
+    const dateStr = puzzleDate.toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
       year: "numeric"
@@ -271,11 +276,13 @@ function closeWinOverlay() {
 }
 
 function getWinPreviewHTML() {
+  const isTodayPuzzle = selectedDay === getDailyIndex();
+
   if (!currentData || !currentData.filled_cells?.length) {
     return `
       <div class="winDate">Puzzle ${selectedDay}</div>
       <div class="winMovesPreview">Moves: ${moveCount}</div>
-      <div class="winStreakPreview">${streakCurrent} Day Streak!</div>
+      ${isTodayPuzzle ? `<div class="winStreakPreview">${streakCurrent} Day Streak!</div>` : ""}
     `;
   }
 
@@ -303,12 +310,9 @@ function getWinPreviewHTML() {
   });
 
   const gridLines = grid.map(row => row.join("")).join("<br>");
+  const puzzleDate = getPuzzleDate(selectedDay);
 
-  const startDate = new Date("2024-01-01");
-  const date = new Date(startDate);
-  date.setDate(startDate.getDate() + selectedDay);
-
-  const dateStr = date.toLocaleDateString(undefined, {
+  const dateStr = puzzleDate.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric"
@@ -317,7 +321,7 @@ function getWinPreviewHTML() {
   return `
     <div class="winDate">${dateStr}</div>
     <div class="winMovesPreview">Moves: ${moveCount}</div>
-    <div class="winStreakPreview">${streakCurrent} Day Streak!</div>
+    ${isTodayPuzzle ? `<div class="winStreakPreview">${streakCurrent} Day Streak!</div>` : ""}
     <div class="winGridPreview">${gridLines}</div>
   `;
 }
@@ -526,12 +530,14 @@ function buildCalendar() {
   }
 }
 
-function goToToday() {
+async function goToToday() {
   const todayIndex = getDailyIndex();
   const playableIndex = Math.min(todayIndex, getLastAvailablePuzzleIndex());
+
   calendarOffset = 0;
-  loadPuzzle(todayIndex);
+  await loadPuzzle(playableIndex);
   buildCalendar();
+  toggleCalendar();
 }
 
 // -----------------------------
@@ -611,9 +617,7 @@ function closeSupportOverlay() {
 }
 
 function getSelectedPuzzleDateString() {
-  const startDate = new Date(2024, 0, 1);
-  const puzzleDate = new Date(startDate);
-  puzzleDate.setDate(startDate.getDate() + selectedDay);
+  const puzzleDate = getPuzzleDate(selectedDay);
 
   return puzzleDate.toLocaleDateString(undefined, {
     month: "long",
@@ -762,7 +766,7 @@ function getPhoneTrayMetrics(boardWidth, boardHeight) {
 
   const trayMargin = layout.sideMargin;
   const trayGapAbove = 16;
-  const trayHeight = cellSize * 4 + 36;
+  const trayHeight = cellSize * 4 + 60;
 
   return {
     x: trayMargin,
@@ -1157,9 +1161,7 @@ function render() {
 
   ctx.restore();
 
-  const startDate = new Date(2024, 0, 1);
-  const puzzleDate = new Date(startDate);
-  puzzleDate.setDate(startDate.getDate() + selectedDay);
+  const puzzleDate = getPuzzleDate(selectedDay);
 
   const dateStr = puzzleDate.toLocaleDateString(undefined, {
     month: "long",
