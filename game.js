@@ -675,9 +675,9 @@ function getLayoutConfig() {
       mode: "phone",
       bottomTrayOnly: true,
 
-      cellSize: 38,
+      cellSize: getPhoneCellSize(),
       sideMargin: 16,
-      topMargin: 85,
+      topMargin: 75,
 
       trayGap: 20,
       pieceSpacing: 12,
@@ -741,6 +741,18 @@ function getLayoutConfig() {
   };
 }
 
+function getPhoneCellSize() {
+  if (!currentData) return 38;
+
+  const layoutSideMargin = 16;
+  const availableWidth = window.innerWidth - layoutSideMargin * 2 - 20; // extra safety padding
+  const maxBoardWidthCells = currentData.grid_width;
+
+  const fitted = Math.floor(availableWidth / maxBoardWidthCells);
+
+  return Math.max(24, Math.min(38, fitted));
+}
+
 function isPhoneTrayMode() {
   return getLayoutMode() === "phone";
 }
@@ -750,7 +762,7 @@ function getPhoneTrayMetrics(boardWidth, boardHeight) {
 
   const trayMargin = layout.sideMargin;
   const trayGapAbove = 16;
-  const trayHeight = cellSize * 4 + 24;
+  const trayHeight = cellSize * 4 + 36;
 
   return {
     x: trayMargin,
@@ -1101,12 +1113,8 @@ function createPieces() {
     trayMaxScrollX = 0;
   }
 
-  if (isPhoneTrayMode()) {
-    canvas.height = window.innerHeight;
-  } else {
-    const neededHeight = gameOffsetY + lowestBottomEdge + extraBottomPadding;
-    canvas.height = Math.max(window.innerHeight, neededHeight);
-  }
+  const neededHeight = gameOffsetY + lowestBottomEdge + extraBottomPadding;
+  canvas.height = Math.max(window.innerHeight, neededHeight);
 }
 
 // -----------------------------
