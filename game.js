@@ -1426,24 +1426,32 @@ function endPointer() {
         moves: moveCount
       }));
 
-      const todayKey = getDateKey(selectedDay);
-      const yesterdayKey = getYesterdayKey();
+      const realTodayKey = getTodayKey();
+      const realYesterdayKey = getYesterdayKey();
+      const todayPuzzleIndex = getDailyIndex();
 
-      if (lastCompletedDate === yesterdayKey) {
-        streakCurrent++;
-      } else if (lastCompletedDate !== todayKey) {
-        streakCurrent = 1;
-      }
+		// Only today's puzzle should affect the streak
+		if (selectedDay === todayPuzzleIndex) {
+		  if (lastCompletedDate === realTodayKey) {
+			// already counted today, do nothing
+		  } else if (lastCompletedDate === realYesterdayKey) {
+			streakCurrent++;
+		  } else {
+			streakCurrent = 1;
+		  }
 
-      if (streakCurrent > streakBest) {
-        streakBest = streakCurrent;
-      }
+		  if (streakCurrent > streakBest) {
+			streakBest = streakCurrent;
+		  }
+	  
+		  lastCompletedDate = realTodayKey;
 
-      lastCompletedDate = todayKey;
+		  localStorage.setItem("streak_current", streakCurrent);
+		  localStorage.setItem("streak_best", streakBest);
+		  localStorage.setItem("last_completed_date", lastCompletedDate);
 
-      localStorage.setItem("streak_current", streakCurrent);
-      localStorage.setItem("streak_best", streakBest);
-      localStorage.setItem("last_completed_date", lastCompletedDate);
+		  updateStreakDisplay();
+		}
 
       updateStreakDisplay();
       startWinSequence();
