@@ -35,6 +35,7 @@ let traySwipeStartX = 0;
 let traySwipeStartScrollX = 0;
 let traySwipeTouchId = null;
 let pendingTrayPiece = null;
+let traySwipeStartY = 0;
 
 let ghostValid = false;
 let ghostGX = 0;
@@ -1177,7 +1178,6 @@ function drawPieces() {
   const phoneTrayMode = isPhoneTrayMode() && trayViewport;
 
   if (phoneTrayMode) {
-    // Draw tray background
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.06)";
     ctx.beginPath();
@@ -1192,11 +1192,14 @@ function drawPieces() {
     ctx.restore();
   }
 
+  // Draw all non-dragging pieces first
   pieces.forEach(p => {
-    const isTrayPiece = !p.placed;
-    const trayOffsetX = phoneTrayMode && isTrayPiece ? -trayScrollX : 0;
+    if (p === draggingPiece) return;
 
-    if (phoneTrayMode && isTrayPiece) {
+    const isTrayPiece = phoneTrayMode && !p.placed;
+    const visualX = isTrayPiece ? p.x - trayScrollX : p.x;
+
+    if (isTrayPiece) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(
@@ -1208,27 +1211,11 @@ function drawPieces() {
       ctx.clip();
     }
 
-    if (p === draggingPiece) {
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = ghostValid ? "green" : "red";
-
-      p.cells.forEach(cell => {
-        ctx.fillRect(
-          ghostGX * cellSize + cell[0] * cellSize,
-          ghostGY * cellSize + cell[1] * cellSize,
-          cellSize,
-          cellSize
-        );
-      });
-
-      ctx.globalAlpha = 1;
-    }
-
     ctx.fillStyle = p.color;
 
     p.cells.forEach(cell => {
       ctx.fillRect(
-        p.x + trayOffsetX + cell[0] * cellSize,
+        visualX + cell[0] * cellSize,
         p.y + cell[1] * cellSize,
         cellSize,
         cellSize
@@ -1236,21 +1223,51 @@ function drawPieces() {
     });
 
     if (labelsEnabled) {
-      if (phoneTrayMode && isTrayPiece) {
-        ctx.save();
-        p.x += trayOffsetX;
+      if (isTrayPiece) {
+        const oldX = p.x;
+        p.x = visualX;
         drawPieceLabel(p);
-        p.x -= trayOffsetX;
-        ctx.restore();
+        p.x = oldX;
       } else {
         drawPieceLabel(p);
       }
     }
 
-    if (phoneTrayMode && isTrayPiece) {
+    if (isTrayPiece) {
       ctx.restore();
     }
   });
+
+  // Draw dragging piece last, never clipped to tray
+  if (draggingPiece) {
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = ghostValid ? "green" : "red";
+
+    draggingPiece.cells.forEach(cell => {
+      ctx.fillRect(
+        ghostGX * cellSize + cell[0] * cellSize,
+        ghostGY * cellSize + cell[1] * cellSize,
+        cellSize,
+        cellSize
+      );
+    });
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = draggingPiece.color;
+
+    draggingPiece.cells.forEach(cell => {
+      ctx.fillRect(
+        draggingPiece.x + cell[0] * cellSize,
+        draggingPiece.y + cell[1] * cellSize,
+        cellSize,
+        cellSize
+      );
+    });
+
+    if (labelsEnabled) {
+      drawPieceLabel(draggingPiece);
+    }
+  }
 }
 
 // -----------------------------
@@ -1396,6 +1413,10 @@ function findPieceAtScreenPoint(screenX, screenY) {
     const isTrayPiece = isPhoneTrayMode() && !p.placed;
     const visualX = isTrayPiece ? p.x - trayScrollX : p.x;
 
+    if (isTrayPiece && !pointInTray(screenX, screenY)) {
+      continue;
+    }
+
     for (let cell of p.cells) {
       const x = visualX + cell[0] * cellSize;
       const y = p.y + cell[1] * cellSize;
@@ -1465,10 +1486,9 @@ function onTouchStart(e) {
   if (inTray) {
     traySwipeActive = true;
     traySwipeStartX = touch.clientX;
+    traySwipeStartY = touch.clientY;
     traySwipeStartScrollX = trayScrollX;
     traySwipeTouchId = touch.identifier;
-
-    // Reserve tray interaction immediately
     e.preventDefault();
   }
 
@@ -1486,7 +1506,23 @@ function onTouchMove(e) {
   if (showWin || showBeginOverlay || e.touches.length === 0) return;
 
   const touch = e.touches[0];
+  const dxTray = touch.clientX - traySwipeStartX;
+  const dyTray = touch.clientY - traySwipeStartY;
+  const absTrayX = Math.abs(dxTray);
+  const absTrayY = Math.abs(dyTray);
 
+  // Horizontal swipe should work anywhere in tray, even not on a piece
+  if (isPhoneTrayMode() && traySwipeActive && !draggingPiece) {
+    if (absTrayX > 6 && absTrayX > absTrayY) {
+      trayScrollX = traySwipeStartScrollX - dxTray;
+      clampTrayScroll();
+      render();
+      e.preventDefault();
+      return;
+    }
+  }
+
+  // Piece dragging
   if (!draggingPiece && pendingTouchPiece) {
     const dx = touch.clientX - pendingTouchStartClientX;
     const dy = touch.clientY - pendingTouchStartClientY;
@@ -1494,16 +1530,7 @@ function onTouchMove(e) {
     const absY = Math.abs(dy);
 
     if (isPhoneTrayMode() && traySwipeActive && !pendingTouchPiece.placed) {
-      // Horizontal gesture = swipe tray
-      if (absX > TOUCH_DRAG_THRESHOLD && absX > absY) {
-        trayScrollX = traySwipeStartScrollX - dx;
-        clampTrayScroll();
-        render();
-        e.preventDefault();
-        return;
-      }
-
-      // Vertical/upward gesture = drag piece out of tray
+      // vertical / upward pull from tray starts drag
       if (absY > TOUCH_DRAG_THRESHOLD && absY >= absX) {
         beginDraggingPiece(
           pendingTouchPiece,
